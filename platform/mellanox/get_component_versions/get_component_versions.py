@@ -150,7 +150,7 @@ def main():
         output_table.append([comp, compiled_versions[comp], actual])
 
     for comp in platform_versions.keys():
-        output_table.append([comp, "-", platform_versions[comp]])
+        output_table.append([comp, "N/A", platform_versions[comp]])
 
     print(format_output_table(output_table))
 
