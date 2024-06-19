@@ -20,7 +20,11 @@ import os
 import subprocess
 import re
 
-from fwutil.lib import PlatformDataProvider
+try:
+    from fwutil.lib import PlatformDataProvider
+except Exception:
+    PlatformDataProvider = None
+
 from sonic_py_common.general import check_output_pipe
 from tabulate import tabulate
 
@@ -28,14 +32,16 @@ COMPONENT_VERSIONS_FILE = "/etc/mlnx/component-versions"
 HEADERS = ["COMPONENT", "COMPILATION", "ACTUAL"]
 COMMANDS_FOR_ACTUAL = {
     "MFT": [["dpkg", "-l"], ["grep", "mft "], "mft *([0-9.-]*)"],
-    "HW-MGMT": [["dpkg", "-l"], ["grep", "hw"], ".*1\\.mlnx\\.([0-9.]*)"],
+    "HW_MANAGEMENT": [["dpkg", "-l"], ["grep", "hw"], ".*1\\.mlnx\\.([0-9.]*)"],
     "SDK": [["docker", "exec", "-it", "syncd", "bash", "-c", 'dpkg -l | grep sdk'], ".*1\\.mlnx\\.([0-9.]*)"],
     "SAI": [["docker", "exec", "-it", "syncd", "bash", "-c", 'dpkg -l | grep mlnx-sai'], ".*1\\.mlnx\\.([A-Za-z0-9.]*)"],
     "FW": [["mlxfwmanager", "--query"], "FW * [0-9]{2}\\.([0-9.]*)"],
-    "Kernel": [["uname", "-r"], "([0-9][0-9.-]*)-.*"]
+    "KERNEL": [["uname", "-r"], "([0-9][0-9.-]*)-.*"],
+    "SIMX": [["lspci", "-vv"], ["grep", "SimX"], "([0-9]+\\.[0-9]+-[0-9]+)"]
 }
 
 UNAVAILABLE_PLATFORM_VERSIONS = {
+    "ONIE": "N/A",
     "SSD": "N/A",
     "BIOS": "N/A",
     "CPLD": "N/A"
@@ -45,9 +51,9 @@ UNAVAILABLE_COMPILED_VERSIONS = {
     "SDK": "N/A",
     "FW": "N/A",
     "SAI": "N/A",
-    "HW-MGMT": "N/A",
+    "HW_MANAGEMENT": "N/A",
     "MFT": "N/A",
-    "Kernel": "N/A"
+    "KERNEL": "N/A"
 }
 
 
@@ -59,15 +65,21 @@ def parse_compiled_components_file():
 
     with open(COMPONENT_VERSIONS_FILE, 'r') as component_versions:
         for line in component_versions.readlines():
-            comp, version = line.split()
-            compiled_versions[comp] = version
+            try:
+                comp, version = line.split()
+                compiled_versions[comp] = version
+            except ValueError:
+                continue 
 
     return compiled_versions
 
 
 def get_platform_component_versions():
-    pdp = PlatformDataProvider()
-    ccm = pdp.chassis_component_map
+    ccm = None
+    
+    if PlatformDataProvider:
+        pdp = PlatformDataProvider()
+        ccm = pdp.chassis_component_map
 
     if not ccm:
         return UNAVAILABLE_PLATFORM_VERSIONS
@@ -91,19 +103,28 @@ def get_platform_component_versions():
 
 def get_current_version(comp):
     version = ""
-    # If there's only one command
-    if len(COMMANDS_FOR_ACTUAL[comp]) == 2:
-        version = subprocess.run(COMMANDS_FOR_ACTUAL[comp][0], shell=False, stdout=subprocess.PIPE, text=True)
-        version = str(version.stdout)
-    #If there are two commands and we need a pipe
-    elif len(COMMANDS_FOR_ACTUAL[comp]) == 3:
-        version = check_output_pipe(COMMANDS_FOR_ACTUAL[comp][0], COMMANDS_FOR_ACTUAL[comp][1])
-    parsed_version = re.search(COMMANDS_FOR_ACTUAL[comp][-1], version)
-    return parsed_version.group(1) if parsed_version else "N/A"
+    try:
+        # If there's only one command
+        if len(COMMANDS_FOR_ACTUAL[comp]) == 2:
+            version = subprocess.run(COMMANDS_FOR_ACTUAL[comp][0], shell=False, stdout=subprocess.PIPE, text=True)
+            version = str(version.stdout)
+        #If there are two commands and we need a pipe
+        elif len(COMMANDS_FOR_ACTUAL[comp]) == 3:
+            version = check_output_pipe(COMMANDS_FOR_ACTUAL[comp][0], COMMANDS_FOR_ACTUAL[comp][1])
+        parsed_version = re.search(COMMANDS_FOR_ACTUAL[comp][-1], version)
+        return parsed_version.group(1) if parsed_version else "N/A"
+    except Exception:
+        return "N/A"
 
 
 def format_output_table(table):
     return tabulate(table, HEADERS)
+
+
+def is_simx_switch():
+    simx_version = get_current_version("SIMX")
+
+    return simx_version != 'N/A'
 
 
 def main():
@@ -113,11 +134,19 @@ def main():
         return
 
     compiled_versions = parse_compiled_components_file()
-    platform_versions = get_platform_component_versions()
+
+    if is_simx_switch():
+        platform_versions = UNAVAILABLE_PLATFORM_VERSIONS
+    else:  
+        platform_versions = get_platform_component_versions()
 
     output_table = []
     for comp in compiled_versions.keys():
         actual = get_current_version(comp)
+
+        if comp == "SIMX" and actual == "N/A":
+            continue
+        
         output_table.append([comp, compiled_versions[comp], actual])
 
     for comp in platform_versions.keys():
