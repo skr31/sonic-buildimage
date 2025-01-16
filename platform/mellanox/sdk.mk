@@ -43,7 +43,6 @@ $(SYSSDK)_SRC_PATH = $(PLATFORM_PATH)/sdk-src/sys-sdk
 $(SYSSDK)_DEPENDS += $(LIBNL3_DEV) $(LIBNL_GENL3_DEV)
 $(SYSSDK)_RDEPENDS += $(LIBNL3) $(LIBNL_GENL3)
 SYSSDK_DEV = sys-sdk_1.mlnx.$(MLNX_SDK_DEB_VERSION)_$(CONFIGURED_ARCH)-dev.deb
-$(eval $(call add_derived_package,$(SYSSDK),$(SYSSDK_DEV)))
 SYSSDK_DBGSYM = sys-sdk_1.mlnx.$(MLNX_SDK_DEB_VERSION)_$(CONFIGURED_ARCH)-dbgsym.ddeb
 ifeq ($(SDK_FROM_SRC),y)
 $(eval $(call add_derived_package,$(SYSSDK),$(SYSSDK_DBGSYM)))
