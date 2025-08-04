@@ -65,6 +65,8 @@ RUN apt-get purge -y         \
     apt-get autoremove -y && \
     rm -rf /debs
 
+RUN apt-get remove -y sys-sdk-dev
+
 COPY ["supervisord.conf.j2", "/usr/share/sonic/templates/"]
 COPY ["files/supervisor-proc-exit-listener", "/usr/bin"]
 COPY ["critical_processes", "/etc/supervisor/"]
