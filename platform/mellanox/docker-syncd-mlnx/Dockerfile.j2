@@ -63,6 +63,9 @@ RUN apt-get purge -y         \
         python3-dev          \
         python3-pip
 
+# Remove SDK dev packages from final image
+RUN apt-get remove -y sys-sdk-dev
+
 COPY ["supervisord.conf.j2", "/usr/share/sonic/templates/"]
 COPY ["files/supervisor-proc-exit-listener", "/usr/bin"]
 COPY ["critical_processes", "/etc/supervisor/"]
